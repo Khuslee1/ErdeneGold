@@ -17,3 +17,11 @@ model ProcessingBatch {
   notes       String?
   submittedAt DateTime @default(now())
 }
+
+model Engineer {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
