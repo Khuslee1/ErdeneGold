@@ -1,444 +1,628 @@
 "use client";
 import { useState } from "react";
-import type { OperatorStep, OperatorSectionProps } from "./type/type";
-import { departments, formFields, getNow, getInputStyle } from "./data/data";
-// import {S} from 
+import type { OperatorSectionProps } from "./type/type";
+import { useDepartments } from "../api/hooks/useDepartments";
+import { useQuestions } from "../api/hooks/useQuestions";
+import { DAY_HOURS, NIGHT_HOURS, getShiftForHour, getNow } from "./data/data";
+import { T } from "../styles/tokens";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  Clock,
+  FileWarning,
+} from "lucide-react";
 
-// ─── STYLES ────────────────────────────────────────────────────
-const S = {
-  page: {
-    minHeight: "100dvh",
-    background: "#0a0a0a",
-    fontFamily: "'Georgia', serif",
-  } as React.CSSProperties,
+const inputStyle = (hasError: boolean): React.CSSProperties => ({
+  width: "100%",
+  padding: "13px 16px",
+  background: hasError ? "#FEF2F0" : T.white,
+  border: `1.5px solid ${hasError ? "#E57373" : T.border}`,
+  borderRadius: 10,
+  fontSize: 16,
+  color: T.text,
+  outline: "none",
+  fontFamily: T.font,
+  boxSizing: "border-box",
+});
 
-  backBtn: (color = "#5a4a30") => ({
-    background: "#1a1408",
-    border: "1px solid #2a2416",
-    color,
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    fontSize: 16,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  } as React.CSSProperties),
+export default function OperatorSection({ onBack }: OperatorSectionProps) {
+  const { departments } = useDepartments();
+  const [step, setStep] = useState<
+    "dept" | "hour" | "form" | "confirm" | "done"
+  >("dept");
+  const [deptId, setDeptId] = useState<string | null>(null);
+  const [hour, setHour] = useState<number | null>(null);
+  const [operator, setOperator] = useState<string>("");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  backBtnLg: (color = "#C9A84C") => ({
-    background: "#1a1408",
-    border: "1px solid #2a2416",
-    color,
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    fontSize: 18,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  } as React.CSSProperties),
-
-  stickyHeader: {
-    background: "#0d0b07",
-    borderBottom: "1px solid #1a1810",
-    padding: "16px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 10,
-  },
-
-  labelSm: {
-    fontSize: 10,
-    color: "#5a4a30",
-    letterSpacing: 2,
-    textTransform: "uppercase" as const,
-  },
-
-  fixedBottom: {
-    position: "fixed" as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: "16px 20px",
-    background: "#0a0a0a",
-    borderTop: "1px solid #1a1810",
-  },
-
-  done: {
-    page: {
-      minHeight: "100dvh",
-      background: "#0a0a0a",
-      display: "flex",
-      flexDirection: "column" as const,
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "'Georgia', serif",
-      padding: 24,
-      textAlign: "center" as const,
-    },
-    icon: {
-      width: 80,
-      height: 80,
-      borderRadius: "50%",
-      background: "linear-gradient(135deg,#2a5a3a,#1a3a28)",
-      border: "2px solid #7EB8A4",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: 36,
-      marginBottom: 24,
-      boxShadow: "0 0 32px #7EB8A422",
-    },
-    title:    { fontSize: 22, color: "#7EB8A4", marginBottom: 8, fontWeight: 600 },
-    subtitle: { fontSize: 14, color: "#7a6a45", marginBottom: 4 },
-    date:     { fontSize: 12, color: "#3a3020", marginBottom: 12, fontFamily: "monospace" },
-    badge: {
-      fontSize: 12,
-      color: "#4a7a4a",
-      background: "#0a1a0a",
-      border: "1px solid #2a4a2a",
-      padding: "8px 16px",
-      borderRadius: 8,
-      marginBottom: 32,
-    },
-    actions: {
-      display: "flex",
-      flexDirection: "column" as const,
-      gap: 12,
-      width: "100%",
-      maxWidth: 320,
-    },
-    primaryBtn: {
-      background: "linear-gradient(135deg,#C9A84C,#8B6914)",
-      border: "none",
-      color: "#0a0a0a",
-      padding: "16px",
-      borderRadius: 12,
-      fontSize: 16,
-      fontWeight: 700,
-      cursor: "pointer",
-    },
-    secondaryBtn: {
-      background: "none",
-      border: "1px solid #2a2416",
-      color: "#5a4a30",
-      padding: "14px",
-      borderRadius: 12,
-      fontSize: 14,
-      cursor: "pointer",
-    },
-  },
-
-  confirm: {
-    deptCard: (color = "#C9A84C") => ({
-      background: "#111009",
-      border: `1px solid ${color}33`,
-      borderRadius: 12,
-      padding: "16px",
-      marginBottom: 20,
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-    } as React.CSSProperties),
-    deptName:  (color = "#C9A84C") => ({ fontSize: 16, color, fontWeight: 600 } as React.CSSProperties),
-    deptMeta:  { fontSize: 11, color: "#4a3a20" },
-    fieldRow:  (even: boolean, first: boolean, last: boolean) => ({
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "12px 16px",
-      background: even ? "#0d0b07" : "#111009",
-      borderRadius: first ? "8px 8px 0 0" : last ? "0 0 8px 8px" : 0,
-    } as React.CSSProperties),
-    fieldLabel: { fontSize: 13, color: "#7a6a45" },
-    fieldValue: { fontSize: 14, color: "#e8dfc0", fontWeight: 600 as const },
-    notesBox:   { background: "#111009", border: "1px solid #2a2416", borderRadius: 8, padding: "12px 16px" },
-    notesLabel: { fontSize: 10, color: "#5a4a30", letterSpacing: 2, marginBottom: 6 },
-    notesText:  { fontSize: 13, color: "#a09070" },
-    submitBtn:  (loading: boolean) => ({
-      width: "100%",
-      padding: "18px",
-      background: loading ? "#1a2010" : "linear-gradient(135deg,#7EB8A4,#4a8a75)",
-      border: "none",
-      borderRadius: 12,
-      color: "#0a0a0a",
-      fontSize: 17,
-      fontWeight: 700,
-      cursor: loading ? "not-allowed" : "pointer",
-    } as React.CSSProperties),
-  },
-
-  form: {
-    header: {
-      background: "#0d0b07",
-      borderBottom: "1px solid #1a1810",
-      padding: "0 20px",
-      position: "sticky" as const,
-      top: 0,
-      zIndex: 10,
-    },
-    headerInner:   { display: "flex", alignItems: "center", gap: 12, padding: "14px 0 10px" },
-    deptLabel:     { fontSize: 10, color: "#5a4a30", letterSpacing: 2, textTransform: "uppercase" as const },
-    deptName:      (color = "#C9A84C") => ({ fontSize: 15, color, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const } as React.CSSProperties),
-    progressPct:   { fontSize: 18, color: "#C9A84C", fontWeight: 700, textAlign: "right" as const },
-    progressCount: { fontSize: 10, color: "#3a3020" },
-    progressTrack: { height: 3, background: "#1a1810", borderRadius: 2 },
-    progressFill:  (pct: number, color = "#C9A84C") => ({ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg,${color},${color}aa)`, borderRadius: 2, transition: "width 0.3s" } as React.CSSProperties),
-    body:          { flex: 1, padding: "20px 20px 120px", overflowY: "auto" as const },
-    fieldList:     { display: "flex", flexDirection: "column" as const, gap: 16 },
-    fieldLabel:    (hasError: boolean) => ({ fontSize: 12, color: hasError ? "#C97B4C" : "#7a6a45", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6, marginBottom: 8, textTransform: "uppercase" as const } as React.CSSProperties),
-    required:      { color: "#C9A84C", fontSize: 14 },
-    errorHint:     { color: "#C97B4C", fontSize: 11, textTransform: "none" as const },
-    selectWrap:    { position: "relative" as const },
-    selectArrow:   { position: "absolute" as const, right: 14, top: "50%", transform: "translateY(-50%)", color: "#5a4a30", pointerEvents: "none" as const, fontSize: 12 },
-    unitWrap:      { display: "flex" },
-    unit:          { background: "#1a1408", border: "1.5px solid #2a2416", borderLeft: "none", borderRadius: "0 8px 8px 0", padding: "0 14px", display: "flex", alignItems: "center", fontSize: 13, color: "#7a6a45", whiteSpace: "nowrap" as const, flexShrink: 0 },
-    nextBtn:       { width: "100%", padding: "18px", background: "linear-gradient(135deg,#C9A84C,#8B6914)", border: "none", borderRadius: 12, color: "#0a0a0a", fontSize: 17, fontWeight: 700, cursor: "pointer" },
-  },
-
-  dept: {
-    header:     { background: "linear-gradient(180deg,#1a1408 0%,#0d0b07 100%)", borderBottom: "1px solid #1a1810", padding: "20px 20px 16px" },
-    headerRow:  { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 },
-    title:      { fontSize: 16, color: "#e8dfc0", fontWeight: 600 },
-    meta:       { fontSize: 11, color: "#5a4a30" },
-    time:       { fontSize: 18, color: "#C9A84C", fontWeight: 700, fontFamily: "monospace" },
-    hint:       { fontSize: 13, color: "#7a6a45" },
-    list:       { padding: "16px 16px 32px", display: "flex", flexDirection: "column" as const, gap: 12 },
-    card:       (color = "#C9A84C") => ({ background: "#111009", border: `1px solid ${color}22`, borderLeft: `4px solid ${color}`, borderRadius: 12, padding: "18px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 16, textAlign: "left" as const, WebkitTapHighlightColor: "transparent" } as React.CSSProperties),
-    cardIcon:   (color = "#C9A84C") => ({ width: 52, height: 52, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 } as React.CSSProperties),
-    cardId:     (color = "#C9A84C") => ({ fontSize: 20, color, fontWeight: 700, marginBottom: 2 } as React.CSSProperties),
-    cardName:   { fontSize: 15, color: "#c0b090" },
-    cardEn:     { fontSize: 11, color: "#4a3a20" },
-    cardArrow:  { color: "#3a3020", fontSize: 22 },
-  },
-};
-
-// ─── COMPONENT ─────────────────────────────────────────────────
-export default function OperatorSection({ onBack, onSubmit }: OperatorSectionProps) {
-  const [step, setStep]               = useState<OperatorStep>("dept");
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const [formData, setFormData]       = useState<Record<string, string>>({});
-  const [loading, setLoading]         = useState<boolean>(false);
-  const [errors, setErrors]           = useState<Record<string, boolean>>({});
-  const [passwordInput, setPasswordInput] = useState<string>("");
-const [passwordError, setPasswordError] = useState<string>("");
-const [showPw, setShowPw] = useState<boolean>(false);
-
-const handleDeptSelect = (deptId: string): void => {
-  setSelectedDept(deptId);
-  setPasswordInput("");
-  setPasswordError("");
-  setStep("password");
-};
-
-const handlePasswordCheck = (): void => {
-  const correct = departments.find((d) => d.id === selectedDept)?.password;
-  if (passwordInput === correct) {
-    setPasswordError("");
-    setStep("form");
-  } else {
-    console.log(departments)
-    setPasswordError("Нууц үг буруу байна. Дахин оролдоно уу.");
-  }
-};
+  const { questions } = useQuestions(deptId, hour);
+  const dept = departments.find((d) => d.id === deptId);
   const { time, date } = getNow();
 
-  const dept   = departments.find((d) => d.id === selectedDept);
-  const fields = selectedDept ? (formFields[selectedDept] ?? []) : [];
+  const updateAnswer = (qId: string, value: string) => {
+    setAnswers((p) => ({ ...p, [qId]: value }));
+    if (errors[qId]) setErrors((p) => ({ ...p, [qId]: false }));
+  };
 
-  const validate = (): boolean => {
+  const validate = () => {
     const errs: Record<string, boolean> = {};
-    fields.forEach((f) => { if (f.required && !formData[f.id]) errs[f.id] = true; });
+    questions.forEach((q) => {
+      if (!answers[q.id] && answers[q.id] !== "false") errs[q.id] = true;
+    });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = async (): Promise<void> => {
+  const handleSubmit = async () => {
     setLoading(true);
+    setSubmitError("");
     try {
-      await fetch("/api/batch", {
+      const res = await fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
-          deptId:   selectedDept ?? "",
-          deptName: dept?.name ?? "",
-          operator: "Оператор",
-          shift:    formData["shift"] ?? "",
+          operatorName: operator,
+          shift: getShiftForHour(hour!),
+          hour,
+          departmentId: deptId,
+          answers,
         }),
       });
-      onSubmit({
-        ...formData,
-        deptId:       selectedDept ?? "",
-        deptName:     dept?.name ?? "",
-        operator:     "Оператор",
-        submitted_at: getNow().full,
-      });
+      if (!res.ok) throw new Error("Failed");
       setStep("done");
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setSubmitError("Алдаа гарлаа. Дахин оролдоно уу.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleReset = (): void => {
+  const handleReset = () => {
     setStep("dept");
-    setSelectedDept(null);
-    setFormData({});
+    setDeptId(null);
+    setHour(null);
+    setOperator("");
+    setAnswers({});
     setErrors({});
+    setSubmitError("");
   };
 
-  const updateField = (id: string, value: string): void => {
-    setFormData((prev) => ({ ...prev, [id]: value }));
-    if (errors[id]) setErrors((prev) => ({ ...prev, [id]: false }));
-  };
-
-  // ── DONE ──────────────────────────────────────────────────────
-  if (step === "done") return (
-    <div style={S.done.page}>
-      <div style={S.done.icon}>✓</div>
-      <div style={S.done.title}>Амжилттай илгээлээ!</div>
-      <div style={S.done.subtitle}>{dept?.name} · {formData["shift"]}</div>
-      <div style={S.done.date}>{date} {time}</div>
-      <div style={S.done.badge}>✓ Инженерийн хэсэгт шууд харагдана</div>
-      <div style={S.done.actions}>
-        <button onClick={handleReset} style={S.done.primaryBtn}>Дахин оруулах</button>
-        <button onClick={onBack}      style={S.done.secondaryBtn}>← Нүүр хуудас</button>
+  const Header = ({
+    title,
+    subtitle,
+    onBack: back,
+  }: {
+    title: string;
+    subtitle?: string;
+    onBack: () => void;
+  }) => (
+    <div
+      style={{
+        background: T.white,
+        borderBottom: `1px solid ${T.border}`,
+        padding: "14px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
+        boxShadow: T.shadow,
+      }}
+    >
+      <button
+        onClick={back}
+        style={{
+          background: T.offWhite,
+          border: `1px solid ${T.border}`,
+          color: T.textMid,
+          width: 38,
+          height: 38,
+          borderRadius: 8,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <ChevronLeft />
+      </button>
+      <div>
+        <div style={{ fontSize: 15, color: T.text, fontWeight: 600 }}>
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{ fontSize: 11, color: T.textLight }}>{subtitle}</div>
+        )}
       </div>
     </div>
   );
 
-  // ── CONFIRM ───────────────────────────────────────────────────
-  if (step === "confirm") return (
-    <div style={{ ...S.page, display: "flex", flexDirection: "column" }}>
-      <div style={S.stickyHeader}>
-        <button onClick={() => setStep("form")} style={S.backBtnLg()}>←</button>
-        <div>
-          <div style={S.labelSm}>Шалгах</div>
-          <div style={{ fontSize: 15, color: "#e8dfc0" }}>Мэдээлэл баталгаажуулах</div>
+  // ── DONE ──────────────────────────────────────────────────────
+  if (step === "done")
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          background: T.bg,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: T.font,
+          padding: 24,
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: `linear-gradient(135deg, #2D6A4F, #1B4332)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: T.white,
+            marginBottom: 24,
+            boxShadow: "0 4px 20px rgba(45,106,79,0.3)",
+          }}
+        >
+          <Check />
+        </div>
+        <div
+          style={{
+            fontSize: 22,
+            color: T.text,
+            fontWeight: 600,
+            marginBottom: 6,
+          }}
+        >
+          Амжилттай илгээлээ!
+        </div>
+        <div style={{ fontSize: 14, color: T.textMid, marginBottom: 4 }}>
+          {dept?.name} · {hour}:00
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: T.textLight,
+            marginBottom: 32,
+            fontFamily: "monospace",
+          }}
+        >
+          {date} {time}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            width: "100%",
+            maxWidth: 320,
+          }}
+        >
+          <button
+            onClick={handleReset}
+            style={{
+              background: `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
+              border: "none",
+              color: T.white,
+              padding: 16,
+              borderRadius: 12,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: T.shadowGold,
+              fontFamily: T.font,
+            }}
+          >
+            Дахин оруулах
+          </button>
+          <button
+            onClick={onBack}
+            style={{
+              background: T.white,
+              border: `1.5px solid ${T.border}`,
+              color: T.textMid,
+              padding: 14,
+              borderRadius: 12,
+              fontSize: 14,
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            ← Нүүр хуудас
+          </button>
         </div>
       </div>
+    );
 
-      <div style={{ flex: 1, padding: "20px 20px 100px", overflowY: "auto" }}>
-        <div style={S.confirm.deptCard(dept?.color)}>
-          {/* <span style={{ fontSize: 28 }}>{dept?.icon}</span> */}
-          <div>
-            <div style={S.confirm.deptName(dept?.color)}>{dept?.name}</div>
-            <div style={S.confirm.deptMeta}>Хэлтэс {dept?.id} · {date}</div>
+  // ── CONFIRM ───────────────────────────────────────────────────
+  if (step === "confirm")
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          background: T.bg,
+          display: "flex",
+          flexDirection: "column",
+          fontFamily: T.font,
+        }}
+      >
+        <Header
+          title="Мэдээлэл шалгах"
+          subtitle="Илгээхийн өмнө шалгана уу"
+          onBack={() => setStep("form")}
+        />
+
+        <div style={{ flex: 1, padding: "20px 20px 100px", overflowY: "auto" }}>
+          <div
+            style={{
+              background: T.white,
+              border: `1.5px solid ${T.border}`,
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 20,
+              borderLeft: `4px solid ${T.gold}`,
+              boxShadow: T.shadow,
+            }}
+          >
+            <div style={{ fontSize: 16, color: T.text, fontWeight: 600 }}>
+              {dept?.name}
+            </div>
+            <div style={{ fontSize: 12, color: T.textLight, marginTop: 2 }}>
+              {operator} · {hour}:00 · {date}
+            </div>
+          </div>
+
+          {Array.from(new Set(questions.map((q) => q.label))).map((label) => (
+            <div key={label ?? "main"} style={{ marginBottom: 16 }}>
+              {label && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: T.gold,
+                    letterSpacing: 2,
+                    textTransform: "uppercase",
+                    marginBottom: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  {label}
+                </div>
+              )}
+              <div
+                style={{
+                  background: T.white,
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  overflow: "hidden",
+                  boxShadow: T.shadow,
+                }}
+              >
+                {questions
+                  .filter((q) => q.label === label)
+                  .map((q, i, arr) => (
+                    <div
+                      key={q.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "11px 16px",
+                        background: i % 2 === 0 ? T.white : T.bg,
+                        borderBottom:
+                          i < arr.length - 1 ? `1px solid ${T.border}` : "none",
+                      }}
+                    >
+                      <span style={{ fontSize: 13, color: T.textMid }}>
+                        {q.title}
+                      </span>
+                      <span
+                        style={{ fontSize: 13, color: T.text, fontWeight: 600 }}
+                      >
+                        {q.type === "BOOLEAN"
+                          ? answers[q.id] === "true"
+                            ? "✓ Тийм"
+                            : "✗ Үгүй"
+                          : (answers[q.id] ?? "—")}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
+
+          {submitError && (
+            <div
+              style={{
+                background: "#FEF2F0",
+                border: "1px solid #FECACA",
+                borderRadius: 10,
+                padding: "10px 14px",
+                fontSize: 13,
+                color: T.red,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              <FileWarning /> {submitError}
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "16px 20px",
+            background: T.white,
+            borderTop: `1px solid ${T.border}`,
+            boxShadow: "0 -4px 12px rgba(0,0,0,0.06)",
+          }}
+        >
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              width: "100%",
+              padding: 17,
+              background: loading
+                ? T.offWhite
+                : `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
+              border: "none",
+              borderRadius: 12,
+              color: loading ? T.textLight : T.white,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+              boxShadow: loading ? "none" : T.shadowGold,
+              fontFamily: T.font,
+            }}
+          >
+            {loading ? "Илгээж байна..." : "✓ Илгээх"}
+          </button>
+        </div>
+      </div>
+    );
+
+  // ── FORM ──────────────────────────────────────────────────────
+  if (step === "form") {
+    const filled = questions.filter(
+      (q) => answers[q.id] !== undefined && answers[q.id] !== "",
+    ).length;
+    const progress =
+      questions.length > 0 ? Math.round((filled / questions.length) * 100) : 0;
+
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          background: T.bg,
+          display: "flex",
+          flexDirection: "column",
+          fontFamily: T.font,
+        }}
+      >
+        <div
+          style={{
+            background: T.white,
+            borderBottom: `1px solid ${T.border}`,
+            padding: "0 20px",
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            boxShadow: T.shadow,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "13px 0 10px",
+            }}
+          >
+            <button
+              onClick={() => setStep("hour")}
+              style={{
+                background: T.offWhite,
+                border: `1px solid ${T.border}`,
+                color: T.textMid,
+                width: 38,
+                height: 38,
+                borderRadius: 8,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <ChevronLeft />
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: T.textLight,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {dept?.name}
+              </div>
+              <div style={{ fontSize: 13, color: T.textMid }}>
+                {operator} · {hour}:00
+              </div>
+            </div>
+            <div style={{ flexShrink: 0, textAlign: "right" }}>
+              <div style={{ fontSize: 18, color: T.gold, fontWeight: 700 }}>
+                {progress}%
+              </div>
+              <div style={{ fontSize: 10, color: T.textLight }}>
+                {filled}/{questions.length}
+              </div>
+            </div>
+          </div>
+          {/* Progress bar */}
+          <div
+            style={{
+              height: 3,
+              background: T.border,
+              borderRadius: 2,
+              marginBottom: 1,
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${progress}%`,
+                background: `linear-gradient(90deg, ${T.gold}, ${T.goldDark})`,
+                borderRadius: 2,
+                transition: "width 0.3s",
+              }}
+            />
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 16 }}>
-          {fields.filter((f) => f.id !== "notes" && formData[f.id]).map((field, i, arr) => (
-            <div key={field.id} style={S.confirm.fieldRow(i % 2 === 0, i === 0, i === arr.length - 1)}>
-              <span style={S.confirm.fieldLabel}>{field.label}</span>
-              <span style={S.confirm.fieldValue}>{formData[field.id]}{field.unit ? " " + field.unit : ""}</span>
+        <div style={{ flex: 1, padding: "20px 20px 120px", overflowY: "auto" }}>
+          {Array.from(new Set(questions.map((q) => q.label))).map((label) => (
+            <div key={label ?? "main"} style={{ marginBottom: 28 }}>
+              {label && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: T.gold,
+                    letterSpacing: 2,
+                    textTransform: "uppercase",
+                    marginBottom: 14,
+                    paddingBottom: 8,
+                    borderBottom: `1.5px solid ${T.goldLight}`,
+                    fontWeight: 600,
+                  }}
+                >
+                  {label}
+                </div>
+              )}
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              >
+                {questions
+                  .filter((q) => q.label === label)
+                  .map((q) => (
+                    <div key={q.id}>
+                      <label
+                        style={{
+                          fontSize: 12,
+                          color: errors[q.id] ? T.red : T.textMid,
+                          letterSpacing: 0.5,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {q.title}
+                        {errors[q.id] && (
+                          <span style={{ color: T.red, fontSize: 11 }}>
+                            ← Заавал бөглөнө үү
+                          </span>
+                        )}
+                      </label>
+
+                      {q.type === "BOOLEAN" ? (
+                        <div style={{ display: "flex", gap: 10 }}>
+                          {[
+                            { label: "✓ Тийм", value: "true" },
+                            { label: "✗ Үгүй", value: "false" },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => updateAnswer(q.id, opt.value)}
+                              style={{
+                                flex: 1,
+                                padding: "13px",
+                                borderRadius: 10,
+                                border: `1.5px solid ${answers[q.id] === opt.value ? (opt.value === "true" ? T.green : T.red) : T.border}`,
+                                background:
+                                  answers[q.id] === opt.value
+                                    ? opt.value === "true"
+                                      ? "#F0FFF4"
+                                      : "#FEF2F0"
+                                    : T.white,
+                                color:
+                                  answers[q.id] === opt.value
+                                    ? opt.value === "true"
+                                      ? T.green
+                                      : T.red
+                                    : T.textLight,
+                                fontSize: 14,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontFamily: T.font,
+                              }}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <input
+                          type={q.type === "NUMBER" ? "number" : "text"}
+                          inputMode={q.type === "NUMBER" ? "decimal" : "text"}
+                          value={answers[q.id] ?? ""}
+                          onChange={(e) => updateAnswer(q.id, e.target.value)}
+                          style={inputStyle(!!errors[q.id])}
+                        />
+                      )}
+                    </div>
+                  ))}
+              </div>
             </div>
           ))}
         </div>
 
-        {formData["notes"] && (
-          <div style={S.confirm.notesBox}>
-            <div style={S.confirm.notesLabel}>ТЭМДЭГЛЭЛ</div>
-            <div style={S.confirm.notesText}>{formData["notes"]}</div>
-          </div>
-        )}
-      </div>
-
-      <div style={S.fixedBottom}>
-        <button onClick={handleSubmit} disabled={loading} style={S.confirm.submitBtn(loading)}>
-          {loading ? "Илгээж байна..." : "✓ Илгээх — Инженерт харагдана"}
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── FORM ──────────────────────────────────────────────────────
-  if (step === "form") {
-    const filledCount = fields.filter((f) => formData[f.id]).length;
-    const progress    = Math.round((filledCount / fields.length) * 100);
-
-    return (
-      <div style={{ ...S.page, display: "flex", flexDirection: "column" }}>
-        <div style={S.form.header}>
-          <div style={S.form.headerInner}>
-            <button onClick={() => setStep("dept")} style={{ ...S.backBtnLg(), flexShrink: 0 }}>←</button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={S.form.deptLabel}>Хэлтэс {dept?.id}</div>
-              {/* <div style={S.form.deptName(dept?.color)}>{dept?.icon} {dept?.name}</div> */}
-            </div>
-            <div style={{ flexShrink: 0 }}>
-              <div style={S.form.progressPct}>{progress}%</div>
-              <div style={S.form.progressCount}>{filledCount}/{fields.length}</div>
-            </div>
-          </div>
-          <div style={S.form.progressTrack}>
-            <div style={S.form.progressFill(progress, dept?.color)} />
-          </div>
-        </div>
-
-        <div style={S.form.body}>
-          <div style={S.form.fieldList}>
-            {fields.map((field) => (
-              <div key={field.id}>
-                <label style={S.form.fieldLabel(!!errors[field.id])}>
-                  {field.label}
-                  {field.required   && <span style={S.form.required}>*</span>}
-                  {errors[field.id] && <span style={S.form.errorHint}>← Заавал бөглөнө үү</span>}
-                </label>
-
-                {field.type === "select" ? (
-                  <div style={S.form.selectWrap}>
-                    <select
-                      value={formData[field.id] ?? ""}
-                      onChange={(e) => updateField(field.id, e.target.value)}
-                      style={{ ...getInputStyle(!!errors[field.id]), paddingRight: 40 }}
-                    >
-                      <option value="">— Сонгох —</option>
-                      {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <span style={S.form.selectArrow}>▼</span>
-                  </div>
-
-                ) : field.type === "textarea" ? (
-                  <textarea
-                    value={formData[field.id] ?? ""}
-                    onChange={(e) => updateField(field.id, e.target.value)}
-                    rows={3}
-                    placeholder={field.placeholder}
-                    style={{ ...getInputStyle(false), resize: "none", lineHeight: 1.6 }}
-                  />
-
-                ) : (
-                  <div style={S.form.unitWrap}>
-                    <input
-                      type={field.type}
-                      inputMode={field.type === "number" ? "decimal" : "text"}
-                      value={formData[field.id] ?? ""}
-                      onChange={(e) => updateField(field.id, e.target.value)}
-                      placeholder={field.placeholder}
-                      style={{
-                        ...getInputStyle(!!errors[field.id]),
-                        borderRadius: field.unit ? "8px 0 0 8px" : 8,
-                        borderRight:  field.unit ? "none" : undefined,
-                      }}
-                    />
-                    {field.unit && <div style={S.form.unit}>{field.unit}</div>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={S.fixedBottom}>
-          <button onClick={() => { if (validate()) setStep("confirm"); }} style={S.form.nextBtn}>
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "16px 20px",
+            background: T.white,
+            borderTop: `1px solid ${T.border}`,
+            boxShadow: "0 -4px 12px rgba(0,0,0,0.06)",
+          }}
+        >
+          <button
+            onClick={() => {
+              if (validate()) setStep("confirm");
+            }}
+            style={{
+              width: "100%",
+              padding: 17,
+              background: `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
+              border: "none",
+              borderRadius: 12,
+              color: T.white,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: T.shadowGold,
+              fontFamily: T.font,
+            }}
+          >
             Шалгах →
           </button>
         </div>
@@ -446,116 +630,232 @@ const handlePasswordCheck = (): void => {
     );
   }
 
-  // ── PASSWORD ──────────────────────────────────────────────────
-if (step === "password") return (
-  <div style={{ minHeight: "100dvh", background: "#0a0a0a", display: "flex", flexDirection: "column", fontFamily: "'Georgia', serif" }}>
-    {/* Header */}
-    <div style={S.stickyHeader}>
-      <button onClick={() => setStep("dept")} style={S.backBtnLg()}>←</button>
-      <div>
-        <div style={S.labelSm}>Нэвтрэх</div>
-        <div style={{ fontSize: 15, color: dept?.color }}>
-       {dept?.name}
-        </div>
-      </div>
-    </div>
+  // ── HOUR SELECTION ────────────────────────────────────────────
+  if (step === "hour") {
+    const currentHour = new Date().getHours();
+    const hours = [...DAY_HOURS, ...NIGHT_HOURS];
 
-    {/* Body */}
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
-      {/* Icon */}
-      {/* <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${dept?.color}18`, border: `2px solid ${dept?.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, marginBottom: 20 }}>
-        {dept?.icon}
-      </div> */}
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          background: T.bg,
+          display: "flex",
+          flexDirection: "column",
+          fontFamily: T.font,
+        }}
+      >
+        <Header
+          title={dept?.name ?? ""}
+          subtitle="Цаг сонгох"
+          onBack={() => setStep("dept")}
+        />
 
-      <div style={{ fontSize: 20, color: "#e8dfc0", fontWeight: 600, marginBottom: 6 }}>
-        {dept?.name}
-      </div>
-      <div style={{ fontSize: 13, color: "#5a4a30", marginBottom: 36 }}>
-        Хэлтсийн нууц үгийг оруулна уу
-      </div>
-
-      <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Password input */}
-        <div>
-          <label style={{ fontSize: 11, color: "#7a6a45", letterSpacing: 2, textTransform: "uppercase", display: "block", marginBottom: 8 }}>
-            Нууц үг
-          </label>
-          <div style={{ position: "relative" }}>
-            <input
-              // type={showPw ? "text" : "password"}
-              value={passwordInput}
-              onChange={(e) => {
-                setPasswordInput(e.target.value);
-                console.log(e.target.value)
-                setPasswordError("");
+        <div style={{ padding: "20px 20px 32px" }}>
+          {/* Operator name input */}
+          <div style={{ marginBottom: 24 }}>
+            <label
+              style={{
+                fontSize: 11,
+                color: T.textMid,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                display: "block",
+                marginBottom: 8,
               }}
-              onKeyDown={(e) => e.key === "Enter" && handlePasswordCheck()}
-              placeholder="••••••••"
-              style={{ ...getInputStyle(!!passwordError), paddingRight: 48 }}
-            />
-            <button
-              onClick={() => setShowPw((p) => !p)}
-              style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#5a4a30", cursor: "pointer", fontSize: 16, padding: 0 }}
             >
-              {showPw ? "🙈" : "👁"}
-            </button>
+              Операторын нэр
+            </label>
+            <input
+              type="text"
+              value={operator}
+              onChange={(e) => setOperator(e.target.value)}
+              placeholder="Нэрээ оруулна уу..."
+              style={inputStyle(false)}
+              autoFocus
+            />
           </div>
+
+          {/* Hour grid */}
+          <div
+            style={{
+              fontSize: 11,
+              color: T.textMid,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              marginBottom: 12,
+            }}
+          >
+            Цаг сонгох
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 10,
+            }}
+          >
+            {hours.map((h) => (
+              <button
+                key={h}
+                onClick={() => {
+                  if (!operator.trim()) return;
+                  setHour(h);
+                  setStep("form");
+                }}
+                disabled={!operator.trim()}
+                style={{
+                  padding: "14px 0",
+                  borderRadius: 10,
+                  border: `1.5px solid ${h === currentHour ? T.gold : T.border}`,
+                  background: h === currentHour ? T.goldLight : T.white,
+                  color: !operator.trim()
+                    ? T.textLight
+                    : h === currentHour
+                      ? T.goldDark
+                      : T.textMid,
+                  fontSize: 14,
+                  fontWeight: h === currentHour ? 700 : 400,
+                  cursor: operator.trim() ? "pointer" : "not-allowed",
+                  boxShadow: h === currentHour ? T.shadowGold : T.shadow,
+                  fontFamily: T.font,
+                }}
+              >
+                {h}:00
+              </button>
+            ))}
+          </div>
+          {!operator.trim() && (
+            <div
+              style={{
+                fontSize: 12,
+                color: T.red,
+                textAlign: "center",
+                marginTop: 12,
+              }}
+            >
+              Эхлээд нэрээ оруулна уу
+            </div>
+          )}
         </div>
-
-        {/* Error */}
-        {passwordError && (
-          <div style={{ background: "#1a0808", border: "1px solid #C97B4C44", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#C97B4C", display: "flex", alignItems: "center", gap: 8 }}>
-            <span>⚠</span> {passwordError}
-          </div>
-        )}
-
-        {/* Submit */}
-        <button
-          onClick={handlePasswordCheck}
-          // disabled={passwordInput}
-          style={{ width: "100%", padding: "18px", background:  "orange" , border: "none", borderRadius: 12, color: !passwordInput ? "#3a3020" : "#0a0a0a", fontSize: 17, fontWeight: 700, cursor: !passwordInput ? "not-allowed" : "pointer", transition: "all 0.2s" }}
-        >
-          Нэвтрэх →
-        </button>
       </div>
-    </div>
-  </div>
-);
+    );
+  }
+
   // ── DEPT SELECTION ────────────────────────────────────────────
   return (
-    <div style={S.page}>
-      <div style={S.dept.header}>
-        <div style={S.dept.headerRow}>
-          <button onClick={onBack} style={S.backBtn()}>←</button>
+    <div style={{ minHeight: "100dvh", background: T.bg, fontFamily: T.font }}>
+      <div
+        style={{
+          background: T.white,
+          borderBottom: `1px solid ${T.border}`,
+          padding: "16px 20px",
+          boxShadow: T.shadow,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 4,
+          }}
+        >
+          <button
+            onClick={onBack}
+            style={{
+              background: T.offWhite,
+              border: `1px solid ${T.border}`,
+              color: T.textMid,
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <ChevronLeft />
+          </button>
           <div style={{ flex: 1 }}>
-            <div style={S.dept.title}>Алт боловсруулалт</div>
-            <div style={S.dept.meta}>Оператор · {date}</div>
+            <div style={{ fontSize: 15, color: T.text, fontWeight: 600 }}>
+              Алт боловсруулалт
+            </div>
+            <div style={{ fontSize: 11, color: T.textLight }}>
+              Оператор · {date}
+            </div>
           </div>
-          <div style={S.dept.time}>{time}</div>
+          <div
+            style={{
+              fontSize: 17,
+              color: T.gold,
+              fontWeight: 700,
+              fontFamily: "monospace",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Clock /> {time}
+          </div>
         </div>
-        <div style={S.dept.hint}>Өөрийн хэлтсийг сонгоно уу:</div>
       </div>
 
-      <div style={S.dept.list}>
-        {departments.map((d) => (
-          <button
-            key={d.id}
-            onClick={() => { handleDeptSelect(d.id) }}
-            style={S.dept.card(d.color)}
-            onTouchStart={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1a1408"; }}
-            onTouchEnd={(e)   => { (e.currentTarget as HTMLButtonElement).style.background = "#111009"; }}
-          >
-            {/* <div style={S.dept.cardIcon(d.color)}>{d.icon}</div> */}
-            <div style={{ flex: 1 }}>
-              <div style={S.dept.cardId(d.color)}>{d.id}</div>
-              <div style={S.dept.cardName}>{d.name}</div>
-              {/* <div style={S.dept.cardEn}>{d.nameEn}</div> */}
-            </div>
-            <div style={S.dept.cardArrow}>›</div>
-          </button>
-        ))}
+      <div style={{ padding: "16px 16px 32px" }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: T.textLight,
+            marginBottom: 16,
+            paddingLeft: 4,
+          }}
+        >
+          Өөрийн хэлтсийг сонгоно уу:
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {departments.map((d) => (
+            <button
+              key={d.id}
+              onClick={() => {
+                setDeptId(d.id);
+                setStep("hour");
+              }}
+              style={{
+                background: T.white,
+                border: `1.5px solid ${T.border}`,
+                borderLeft: `4px solid ${d.color}`,
+                borderRadius: 12,
+                padding: "16px 20px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                textAlign: "left",
+                boxShadow: T.shadow,
+                transition: "all 0.15s",
+                fontFamily: T.font,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateX(2px)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform = "none";
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, color: T.text, fontWeight: 600 }}>
+                  {d.name}
+                </div>
+              </div>
+              <div style={{ color: T.borderDark }}>
+                <ChevronDown />
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
-

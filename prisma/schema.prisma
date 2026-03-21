@@ -7,21 +7,56 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model ProcessingBatch {
-  id          Int      @id @default(autoincrement())
-  deptId      String
-  deptName    String
-  operator    String
-  shift       String
-  data        Json
-  notes       String?
-  submittedAt DateTime @default(now())
-}
-
 model Engineer {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   passwordHash String
   name         String
   createdAt    DateTime @default(now())
+}
+
+enum QuestionType {
+  TEXT
+  NUMBER
+  BOOLEAN
+}
+
+enum Shift {
+  DAY   // 05:00 - 16:00
+  NIGHT // 17:00 - 04:00
+}
+
+model Department {
+  id          String       @id @default(cuid())
+  name        String     @unique
+  questions   Question[]
+  submissions Submission[]
+}
+
+model Question {
+  id           String       @id @default(cuid())
+  title        String
+  label        String?
+  type         QuestionType
+  order        Int          @default(0)
+  allowedHours Int[]        // empty = all hours allowed. [6,7,8,9,10] = only those hours
+  createdAt    DateTime     @default(now())
+
+  departmentId String
+  department   Department   @relation(fields: [departmentId], references: [id])
+    @@unique([title, departmentId])  // ← add this
+}
+
+model Submission {
+  id           String     @id @default(cuid())
+  operatorName String
+  shift        Shift
+    hour         Int        // 5, 6, 7, 8 ... 16 — the row in the Excel
+  submittedAt  DateTime   @default(now())
+  answers      Json
+  // answers shape: { [questionId]: string | number | boolean }
+  // example: { "cm1abc": "MC-04", "cm2xyz": 87.5, "cm3def": true }
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
 }

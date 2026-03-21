@@ -1,283 +1,650 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
-import type { BatchRecord, EngineerSectionProps } from "./type/type";
-import { departments, formFields, initialRecords, getNow } from "./data/data";
+import type { EngineerSectionProps, Submission, Question } from "./type/type";
+import { useSubmissions } from "../api/hooks/useSubmissions";
+import { useDepartments } from "../api/hooks/useDepartments";
+import { getNow } from "./data/data";
 
-// ─── STYLES ────────────────────────────────────────────────────
-const S = {
-  page: {
-    minHeight: "100dvh",
-    background: "#0a0a0a",
-    fontFamily: "'Georgia', serif",
-  } as React.CSSProperties,
+import { T } from "../styles/tokens";
+import {
+  ArrowBigDown,
+  Calendar,
+  ChevronLeft,
+  File,
+  Filter,
+} from "lucide-react";
 
-  // Detail view
-  detail: {
-    page: {
-      minHeight: "100dvh",
-      background: "#0a0a0a",
-      fontFamily: "'Georgia', serif",
-      display: "flex",
-      flexDirection: "column" as const,
-    },
-    header: {
-      background: "#0d0b07",
-      borderBottom: "1px solid #1a1810",
-      padding: "16px 20px",
-      display: "flex", alignItems: "center", gap: 12,
-      position: "sticky" as const, top: 0, zIndex: 10,
-    },
-    backBtn: {
-      background: "#1a1408", border: "1px solid #2a2416", color: "#7EB8A4",
-      width: 40, height: 40, borderRadius: 8, fontSize: 18,
-      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-    },
-    headerLabel: { fontSize: 10, color: "#5a4a30", letterSpacing: 2, textTransform: "uppercase" as const },
-    headerTitle: (color = "#C9A84C") => ({ fontSize: 15, color } as React.CSSProperties),
-    body:        { padding: "20px", overflowY: "auto" as const },
-    metaCard:    (color = "#C9A84C") => ({ background: "#111009", border: `1px solid ${color}33`, borderRadius: 10, padding: "14px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 8 } as React.CSSProperties),
-    metaLabel:   { fontSize: 10, color: "#5a4a30", letterSpacing: 1 },
-    metaOperator:{ fontSize: 14, color: "#e8dfc0" },
-    metaShift:   { fontSize: 14, color: "#7EB8A4" },
-    metaDate:    { fontSize: 13, color: "#7a6a45", fontFamily: "monospace" },
-    fieldList:   { display: "flex", flexDirection: "column" as const, gap: 2 },
-    fieldRow:    (even: boolean, first: boolean, last: boolean) => ({ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: even ? "#0d0b07" : "#111009", borderRadius: first ? "8px 8px 0 0" : last ? "0 0 8px 8px" : 0 } as React.CSSProperties),
-    fieldLabel:  { fontSize: 13, color: "#7a6a45" },
-    fieldValue:  { fontSize: 14, color: "#e8dfc0", fontWeight: 600 as const },
-    notesBox:    { background: "#111009", border: "1px solid #2a2416", borderRadius: 8, padding: "12px 16px", marginTop: 12 },
-    notesLabel:  { fontSize: 10, color: "#5a4a30", letterSpacing: 2, marginBottom: 6 },
-    notesText:   { fontSize: 13, color: "#a09070" },
-  },
+export default function EngineerSection({ onBack }: EngineerSectionProps) {
+  const { departments } = useDepartments();
+  const [filterDept, setFilterDept] = useState<string>("");
+  const today = new Date().toISOString().split("T")[0];
+  const [dateFrom, setDateFrom] = useState<string>(today);
+  const [dateTo, setDateTo] = useState<string>(today);
+  const [detail, setDetail] = useState<Submission | null>(null);
+  const [questionMap, setQuestionMap] = useState<Record<string, string>>({});
 
-  // List view
-  list: {
-    header: {
-      background: "linear-gradient(180deg,#081410 0%,#0a0a0a 100%)",
-      borderBottom: "1px solid #1a2a20",
-      padding: "20px 20px 16px",
-    },
-    headerRow:   { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 },
-    backBtn: {
-      background: "#0a1a10", border: "1px solid #1a3a20", color: "#5a8a6a",
-      width: 36, height: 36, borderRadius: 8, fontSize: 16,
-      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-    },
-    title:       { fontSize: 16, color: "#e8dfc0", fontWeight: 600 },
-    meta:        { fontSize: 11, color: "#3a6a4a" },
-    exportBtn:   (exporting: boolean, exported: boolean) => ({
-      background: exported ? "#0a2a10" : exporting ? "#0a1a10" : "linear-gradient(135deg,#7EB8A4,#4a8a75)",
-      border: exported ? "1px solid #7EB8A4" : "none",
-      color: exported ? "#7EB8A4" : "#0a0a0a",
-      padding: "10px 16px", borderRadius: 10,
-      fontSize: 13, fontWeight: 700,
-      cursor: exporting ? "not-allowed" : "pointer",
-      whiteSpace: "nowrap" as const,
-    } as React.CSSProperties),
-    statsRow:    { display: "flex", gap: 8, marginBottom: 14 },
-    statCard:    (color: string) => ({ flex: 1, background: "#0d1a10", border: `1px solid ${color}22`, borderRadius: 8, padding: "8px 10px", textAlign: "center" as const } as React.CSSProperties),
-    statValue:   (color: string) => ({ fontSize: 20, color, fontWeight: 700 } as React.CSSProperties),
-    statLabel:   { fontSize: 10, color: "#3a5a3a" },
-    filterRow:   { display: "flex", gap: 8, overflowX: "auto" as const, paddingBottom: 4 },
-    filterBtn:   (active: boolean) => ({
-      background: active ? "#0a2a18" : "none",
-      border: `1px solid ${active ? "#7EB8A4" : "#1a2a20"}`,
-      color: active ? "#7EB8A4" : "#3a5a3a",
-      padding: "6px 12px", borderRadius: 20,
-      fontSize: 12, cursor: "pointer",
-      whiteSpace: "nowrap" as const, flexShrink: 0,
-    } as React.CSSProperties),
-    body:        { padding: "16px 16px 32px", display: "flex", flexDirection: "column" as const, gap: 10 },
-    empty:       { textAlign: "center" as const, padding: "60px 20px", color: "#2a2416", fontStyle: "italic" as const },
-    recordCard:  (isNew: boolean, color = "#C9A84C") => ({
-      background: "#111009",
-      border: `1px solid ${isNew ? "#7EB8A4" : color + "22"}`,
-      borderLeft: `4px solid ${color}`,
-      borderRadius: 10, padding: "14px 16px",
-      cursor: "pointer", textAlign: "left" as const,
-      WebkitTapHighlightColor: "transparent",
-      position: "relative" as const,
-    } as React.CSSProperties),
-    newBadge:    { position: "absolute" as const, top: 10, right: 12, fontSize: 9, background: "#0a2a18", color: "#7EB8A4", padding: "2px 7px", borderRadius: 10, letterSpacing: 1 },
-    recordTop:   { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 },
-    recordDeptId:(color = "#C9A84C") => ({ fontSize: 15, color, fontWeight: 600 } as React.CSSProperties),
-    recordDeptNm:{ fontSize: 14, color: "#a09070" },
-    recordBottom:{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" },
-    recordOp:    { fontSize: 12, color: "#7a6a45" },
-    recordShift: { fontSize: 11, color: "#4a7a5a", marginTop: 2 },
-    recordDate:  { fontSize: 11, color: "#3a3020", fontFamily: "monospace" },
-    recordLink:  { fontSize: 11, color: "#3a5a3a", marginTop: 2 },
-  },
-};
-
-// ─── COMPONENT ─────────────────────────────────────────────────
-export default function EngineerSection({ onBack, records }: EngineerSectionProps) {
-  const [filterDept, setFilterDept] = useState<string>("all");
-  const [detail, setDetail]         = useState<BatchRecord | null>(null);
-  const [exporting, setExporting]   = useState<boolean>(false);
-  const [exported, setExported]     = useState<boolean>(false);
+  const { submissions, loading } = useSubmissions(
+    filterDept || undefined,
+    dateFrom,
+    dateTo,
+  );
   const { date, time } = getNow();
+  const dept = detail
+    ? departments.find((d) => d.id === detail.department.id)
+    : null;
 
-  const filtered: BatchRecord[] = records.filter((r) => filterDept === "all" || r.deptId === filterDept);
-
-  const handleExport = (): void => {
-    const rows = filtered.map((record) => {
-      const dept   = departments.find((d) => d.id === record.deptId);
-      const fields = formFields[record.deptId] ?? [];
-
-      const dynamicFields: Record<string, string> = {};
-      fields.forEach((field) => {
-        if (record[field.id] !== undefined) {
-          const label = field.unit ? `${field.label} (${field.unit})` : field.label;
-          dynamicFields[label] = String(record[field.id] ?? "");
-        }
+  useEffect(() => {
+    if (!departments.length) return;
+    Promise.all(
+      departments.map((d) =>
+        fetch(`/api/departments/${d.id}/questions`).then((r) => r.json()),
+      ),
+    ).then((results: Question[][]) => {
+      const map: Record<string, string> = {};
+      results.flat().forEach((q) => {
+        map[q.id] = q.title;
       });
-
-      return {
-        "Дугаар":    record.id,
-        "Хэлтэс":   `${record.deptId} - ${dept?.name}`,
-        "Оператор":  record.operator,
-        "Ээлж":      record.shift,
-        "Огноо":     record.submitted_at,
-        ...dynamicFields,
-        "Тэмдэглэл": record.notes ?? "",
-      };
+      setQuestionMap(map);
     });
+  }, [departments]);
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    worksheet["!cols"] = [
-      { wch: 8 }, { wch: 20 }, { wch: 18 }, { wch: 22 }, { wch: 20 },
-      ...Array(20).fill({ wch: 18 }),
-    ];
+  const resolveAnswers = (answers: Record<string, string>) =>
+    Object.entries(answers).reduce(
+      (acc, [k, v]) => ({ ...acc, [questionMap[k] ?? k]: v }),
+      {} as Record<string, string>,
+    );
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Боловсруулалт");
-
-    const today    = new Date().toLocaleDateString("mn-MN").replace(/\./g, "-");
-    const deptName = filterDept === "all"
-      ? "Бүх хэлтэс"
-      : departments.find((d) => d.id === filterDept)?.name ?? filterDept;
-
-    XLSX.writeFile(workbook, `Алт_боловсруулалт_${deptName}_${today}.xlsx`);
+  const handleExport = () => {
+    const rows = submissions.map((s) => ({
+      Хэлтэс: s.department.name,
+      Оператор: s.operatorName,
+      Ээлж: s.shift === "DAY" ? "Өдрийн" : "Шөнийн",
+      Цаг: `${s.hour}:00`,
+      Огноо: new Date(s.submittedAt).toLocaleDateString("mn-MN"),
+      ...resolveAnswers(s.answers),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Мэдээлэл");
+    const deptName =
+      filterDept === "all"
+        ? "Бүх хэлтэс"
+        : (departments.find((d) => d.id === filterDept)?.name ?? filterDept);
+    XLSX.writeFile(wb, `Алт_${deptName}_${dateFrom}_${dateTo}.xlsx`);
   };
 
-  // ── DETAIL VIEW ───────────────────────────────────────────────
-  if (detail) {
-    const dept   = departments.find((d) => d.id === detail.deptId);
-    const fields = formFields[detail.deptId] ?? [];
+  const inputDateStyle: React.CSSProperties = {
+    background: T.white,
+    border: `1.5px solid ${T.border}`,
+    borderRadius: 8,
+    padding: "9px 12px",
+    color: T.text,
+    fontSize: 13,
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+    fontFamily: T.font,
+  };
 
-    return (
-      <div style={S.detail.page}>
-        <div style={S.detail.header}>
-          <button onClick={() => setDetail(null)} style={S.detail.backBtn}>←</button>
-          <div>
-            <div style={S.detail.headerLabel}>Дэлгэрэнгүй</div>
-            {/* <div style={S.detail.headerTitle(dept?.color)}>{dept?.icon} {dept?.name}</div> */}
+  return (
+    <div
+      style={{
+        minHeight: "100dvh",
+        background: T.bg,
+        fontFamily: T.font,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Top navbar — desktop */}
+      <div
+        style={{
+          background: T.white,
+          borderBottom: `1px solid ${T.border}`,
+          padding: "14px 32px",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          boxShadow: T.shadow,
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+        }}
+      >
+        <button
+          onClick={onBack}
+          style={{
+            background: T.offWhite,
+            border: `1px solid ${T.border}`,
+            color: T.textMid,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ChevronLeft />
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, color: T.text, fontWeight: 600 }}>
+            Инженерийн хэсэг
+          </div>
+          <div style={{ fontSize: 11, color: T.textLight }}>
+            {date} · {time} · Нийт {submissions.length} бичлэг
           </div>
         </div>
+        <button
+          onClick={handleExport}
+          style={{
+            background: `linear-gradient(135deg, ${T.gold}, ${T.goldDark})`,
+            border: "none",
+            color: T.white,
+            padding: "10px 20px",
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: T.shadowGold,
+            fontFamily: T.font,
+          }}
+        >
+          <File /> Excel татах
+        </button>
+      </div>
 
-        <div style={S.detail.body}>
-          <div style={S.detail.metaCard(dept?.color)}>
-            <div>
-              <div style={S.detail.metaLabel}>ОПЕРАТОР</div>
-              <div style={S.detail.metaOperator}>{detail.operator}</div>
-            </div>
-            <div>
-              <div style={S.detail.metaLabel}>ЭЭЛЖ</div>
-              <div style={S.detail.metaShift}>{detail.shift}</div>
-            </div>
-            <div>
-              <div style={S.detail.metaLabel}>ОГНОО</div>
-              <div style={S.detail.metaDate}>{detail.submitted_at}</div>
-            </div>
-          </div>
-
-          <div style={S.detail.fieldList}>
-            {fields.filter((f) => f.id !== "notes" && detail[f.id]).map((field, i, arr) => (
-              <div key={field.id} style={S.detail.fieldRow(i % 2 === 0, i === 0, i === arr.length - 1)}>
-                <span style={S.detail.fieldLabel}>{field.label}</span>
-                <span style={S.detail.fieldValue}>{String(detail[field.id])}{field.unit ? " " + field.unit : ""}</span>
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        {/* Sidebar filters */}
+        <div
+          style={{
+            width: 260,
+            background: T.white,
+            borderRight: `1px solid ${T.border}`,
+            padding: "24px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 24,
+            flexShrink: 0,
+            overflowY: "auto",
+          }}
+        >
+          {/* Stats */}
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+          >
+            {[
+              { label: "Нийт", value: submissions.length, color: T.gold },
+              {
+                label: "Хэлтэс",
+                value: [...new Set(submissions.map((s) => s.department.id))]
+                  .length,
+                color: T.text,
+              },
+              {
+                label: "Оператор",
+                value: [...new Set(submissions.map((s) => s.operatorName))]
+                  .length,
+                color: T.green,
+              },
+              {
+                label: "Цаг",
+                value: [...new Set(submissions.map((s) => s.hour))].length,
+                color: T.textMid,
+              },
+            ].map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  background: T.bg,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  padding: "12px 10px",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: 22, color: s.color, fontWeight: 700 }}>
+                  {s.value}
+                </div>
+                <div style={{ fontSize: 10, color: T.textLight, marginTop: 2 }}>
+                  {s.label}
+                </div>
               </div>
             ))}
           </div>
 
-          {detail.notes && (
-            <div style={S.detail.notesBox}>
-              <div style={S.detail.notesLabel}>ТЭМДЭГЛЭЛ</div>
-              <div style={S.detail.notesText}>{detail.notes}</div>
+          {/* Date range */}
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: T.textMid,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Calendar /> Огноо
             </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div>
+                <div
+                  style={{ fontSize: 11, color: T.textLight, marginBottom: 4 }}
+                >
+                  Эхлэх
+                </div>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={inputDateStyle}
+                />
+              </div>
+              <div>
+                <div
+                  style={{ fontSize: 11, color: T.textLight, marginBottom: 4 }}
+                >
+                  Дуусах
+                </div>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={inputDateStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Dept filter */}
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: T.textMid,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Filter /> Хэлтэс
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {departments.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setFilterDept(d.id)}
+                  style={{
+                    background: filterDept === d.id ? T.goldLight : "none",
+                    border: `1.5px solid ${filterDept === d.id ? T.gold : T.border}`,
+                    color: filterDept === d.id ? T.goldDark : T.textMid,
+                    padding: "9px 14px",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: T.font,
+                    fontWeight: filterDept === d.id ? 600 : 400,
+                  }}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+          {/* Detail view */}
+          {detail ? (
+            <div style={{ maxWidth: 700 }}>
+              <button
+                onClick={() => setDetail(null)}
+                style={{
+                  background: T.white,
+                  border: `1px solid ${T.border}`,
+                  color: T.textMid,
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 13,
+                  marginBottom: 20,
+                  fontFamily: T.font,
+                }}
+              >
+                <ChevronLeft /> Буцах
+              </button>
+
+              <div
+                style={{
+                  background: T.white,
+                  border: `1.5px solid ${T.border}`,
+                  borderRadius: 14,
+                  padding: "20px 24px",
+                  marginBottom: 20,
+                  borderLeft: `4px solid ${dept?.color ?? T.gold}`,
+                  boxShadow: T.shadow,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 18,
+                    color: T.text,
+                    fontWeight: 600,
+                    marginBottom: 8,
+                  }}
+                >
+                  {detail.department.name}
+                </div>
+                <div style={{ display: "flex", gap: 32 }}>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: T.textLight,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Оператор
+                    </div>
+                    <div style={{ fontSize: 14, color: T.text, marginTop: 2 }}>
+                      {detail.operatorName}
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: T.textLight,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Цаг
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: T.gold,
+                        fontWeight: 600,
+                        marginTop: 2,
+                      }}
+                    >
+                      {detail.hour}:00
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: T.textLight,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Огноо
+                    </div>
+                    <div style={{ fontSize: 14, color: T.text, marginTop: 2 }}>
+                      {new Date(detail.submittedAt).toLocaleDateString("mn-MN")}
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: T.textLight,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Ээлж
+                    </div>
+                    <div style={{ fontSize: 14, color: T.text, marginTop: 2 }}>
+                      {detail.shift === "DAY" ? "Өдрийн" : "Шөнийн"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: T.white,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  boxShadow: T.shadow,
+                }}
+              >
+                {Object.entries(resolveAnswers(detail.answers)).map(
+                  ([key, value], i, arr) => (
+                    <div
+                      key={key}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "12px 20px",
+                        background: i % 2 === 0 ? T.white : T.bg,
+                        borderBottom:
+                          i < arr.length - 1 ? `1px solid ${T.border}` : "none",
+                      }}
+                    >
+                      <span style={{ fontSize: 13, color: T.textMid }}>
+                        {key}
+                      </span>
+                      <span
+                        style={{ fontSize: 13, color: T.text, fontWeight: 600 }}
+                      >
+                        {value}
+                      </span>
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+          ) : (
+            // List view
+            <>
+              {loading && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px 20px",
+                    color: T.textLight,
+                  }}
+                >
+                  Уншиж байна...
+                </div>
+              )}
+              {!loading && submissions.length === 0 && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px 20px",
+                    color: T.textLight,
+                  }}
+                >
+                  Мэдээлэл олдсонгүй
+                </div>
+              )}
+
+              {/* Table */}
+              {!loading && submissions.length > 0 && (
+                <div
+                  style={{
+                    background: T.white,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    boxShadow: T.shadow,
+                  }}
+                >
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontFamily: T.font,
+                    }}
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          background: T.offWhite,
+                          borderBottom: `2px solid ${T.border}`,
+                        }}
+                      >
+                        {["Хэлтэс", "Оператор", "Цаг", "Ээлж", "Огноо", ""].map(
+                          (h, i) => (
+                            <th
+                              key={i}
+                              style={{
+                                padding: "12px 16px",
+                                textAlign: "left",
+                                fontSize: 11,
+                                color: T.textMid,
+                                letterSpacing: 1,
+                                textTransform: "uppercase",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {h}
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submissions.map((s, i) => {
+                        const d = departments.find(
+                          (dep) => dep.id === s.department.id,
+                        );
+                        return (
+                          <tr
+                            key={s.id}
+                            style={{
+                              borderBottom:
+                                i < submissions.length - 1
+                                  ? `1px solid ${T.border}`
+                                  : "none",
+                              background: i % 2 === 0 ? T.white : T.bg,
+                              cursor: "pointer",
+                              transition: "background 0.1s",
+                            }}
+                            onClick={() => setDetail(s)}
+                            onMouseEnter={(e) => {
+                              (
+                                e.currentTarget as HTMLTableRowElement
+                              ).style.background = T.goldLight;
+                            }}
+                            onMouseLeave={(e) => {
+                              (
+                                e.currentTarget as HTMLTableRowElement
+                              ).style.background = i % 2 === 0 ? T.white : T.bg;
+                            }}
+                          >
+                            <td style={{ padding: "12px 16px" }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: "50%",
+                                    background: d?.color ?? T.gold,
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    color: T.text,
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  {s.department.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px 16px",
+                                fontSize: 13,
+                                color: T.textMid,
+                              }}
+                            >
+                              {s.operatorName}
+                            </td>
+                            <td style={{ padding: "12px 16px" }}>
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  color: T.gold,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {s.hour}:00
+                              </span>
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px 16px",
+                                fontSize: 12,
+                                color: T.textLight,
+                              }}
+                            >
+                              {s.shift === "DAY" ? "Өдрийн" : "Шөнийн"}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px 16px",
+                                fontSize: 12,
+                                color: T.textLight,
+                              }}
+                            >
+                              {new Date(s.submittedAt).toLocaleDateString(
+                                "mn-MN",
+                              )}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px 16px",
+                                color: T.textLight,
+                              }}
+                            >
+                              <ArrowBigDown />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
-      </div>
-    );
-  }
-
-  // ── LIST VIEW ─────────────────────────────────────────────────
-  const stats = [
-    { label: "Нийт",     value: filtered.length,                                      color: "#C9A84C" },
-    { label: "Хэлтэс",   value: [...new Set(filtered.map((r) => r.deptId))].length,   color: "#7EB8A4" },
-    { label: "Оператор", value: [...new Set(filtered.map((r) => r.operator))].length, color: "#C97B4C" },
-  ];
-
-  return (
-    <div style={S.page}>
-      <div style={S.list.header}>
-        <div style={S.list.headerRow}>
-          <button onClick={onBack} style={S.list.backBtn}>←</button>
-          <div style={{ flex: 1 }}>
-            <div style={S.list.title}>Инженерийн хэсэг</div>
-            <div style={S.list.meta}>Нийт {records.length} бичлэг · {date} {time}</div>
-          </div>
-          <button onClick={handleExport} disabled={exporting} style={S.list.exportBtn(exporting, exported)}>
-            {exported ? "✓ Татагдлаа!" : exporting ? "..." : "⬇ Excel"}
-          </button>
-        </div>
-
-        <div style={S.list.statsRow}>
-          {stats.map((s, i) => (
-            <div key={i} style={S.list.statCard(s.color)}>
-              <div style={S.list.statValue(s.color)}>{s.value}</div>
-              <div style={S.list.statLabel}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={S.list.filterRow}>
-          {[{ id: "all", name: "Бүгд", color: "#7EB8A4" }, ...departments].map((d) => (
-            <button key={d.id} onClick={() => setFilterDept(d.id)} style={S.list.filterBtn(filterDept === d.id)}>
-              {d.id === "all" ? "Бүгд" : d.id}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={S.list.body}>
-        {filtered.length === 0 && <div style={S.list.empty}>Мэдээлэл олдсонгүй</div>}
-
-        {filtered.map((record, i) => {
-          const dept  = departments.find((d) => d.id === record.deptId);
-          const isNew = i === 0 && records.length > initialRecords.length;
-          return (
-            <button key={record.id} onClick={() => setDetail(record)} style={S.list.recordCard(isNew, dept?.color)}>
-              {isNew && <div style={S.list.newBadge}>ШИНЭ</div>}
-              <div style={S.list.recordTop}>
-                {/* <span style={{ fontSize: 20 }}>{dept?.icon}</span> */}
-                <span style={S.list.recordDeptId(dept?.color)}>{dept?.id}</span>
-                <span style={S.list.recordDeptNm}>{dept?.name}</span>
-              </div>
-              <div style={S.list.recordBottom}>
-                <div>
-                  <div style={S.list.recordOp}>{record.operator}</div>
-                  <div style={S.list.recordShift}>{record.shift}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={S.list.recordDate}>{record.submitted_at}</div>
-                  <div style={S.list.recordLink}>Харах →</div>
-                </div>
-              </div>
-            </button>
-          );
-        })}
       </div>
     </div>
   );
