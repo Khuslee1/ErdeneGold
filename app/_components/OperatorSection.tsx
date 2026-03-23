@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { OperatorSectionProps } from "./type/type";
 import { useDepartments } from "../api/hooks/useDepartments";
 import { useQuestions } from "../api/hooks/useQuestions";
-import { DAY_HOURS, NIGHT_HOURS, getShiftForHour, getNow } from "./data/data";
+import { DAY_HOURS, NIGHT_HOURS, getShiftForHour, getNow, DEPT_NAMES } from "./data/data";
 import { T } from "../styles/tokens";
 import {
   Check,
@@ -275,6 +275,11 @@ export default function OperatorSection({ onBack }: OperatorSectionProps) {
           >
             <div style={{ fontSize: 16, color: T.text, fontWeight: 600 }}>
               {dept?.name}
+              {dept && DEPT_NAMES[dept.name] && (
+                <span style={{ fontWeight: 400, color: T.textMid, marginLeft: 8, fontSize: 13 }}>
+                  {DEPT_NAMES[dept.name]}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 12, color: T.textLight, marginTop: 2 }}>
               {operator} · {hour}:00 · {date}
@@ -848,6 +853,11 @@ export default function OperatorSection({ onBack }: OperatorSectionProps) {
                 <div style={{ fontSize: 18, color: T.text, fontWeight: 600 }}>
                   {d.name}
                 </div>
+                {DEPT_NAMES[d.name] && (
+                  <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>
+                    {DEPT_NAMES[d.name]}
+                  </div>
+                )}
               </div>
               <div style={{ color: T.borderDark }}>
                 <ChevronDown />

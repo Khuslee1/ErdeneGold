@@ -55,6 +55,9 @@ export default function EngineerLoginModal({
         display: "flex",
         flexDirection: "column",
         fontFamily: T.font,
+        backgroundImage: "url('./landing.jpg')",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
       }}
     >
       {/* Header */}

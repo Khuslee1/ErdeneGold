@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import type { EngineerSectionProps, Submission, Question } from "./type/type";
 import { useSubmissions } from "../api/hooks/useSubmissions";
 import { useDepartments } from "../api/hooks/useDepartments";
-import { getNow } from "./data/data";
+import { getNow, DEPT_NAMES } from "./data/data";
 
 import { T } from "../styles/tokens";
 import {
@@ -299,7 +299,12 @@ export default function EngineerSection({ onBack }: EngineerSectionProps) {
                     fontWeight: filterDept === d.id ? 600 : 400,
                   }}
                 >
-                  {d.name}
+                  <div style={{ fontWeight: 600 }}>{d.name}</div>
+                  {DEPT_NAMES[d.name] && (
+                    <div style={{ fontSize: 11, color: T.textLight, marginTop: 2, fontWeight: 400 }}>
+                      {DEPT_NAMES[d.name]}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -351,6 +356,11 @@ export default function EngineerSection({ onBack }: EngineerSectionProps) {
                   }}
                 >
                   {detail.department.name}
+                  {DEPT_NAMES[detail.department.name] && (
+                    <div style={{ fontSize: 13, color: T.textMid, fontWeight: 400, marginTop: 2 }}>
+                      {DEPT_NAMES[detail.department.name]}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 32 }}>
                   <div>

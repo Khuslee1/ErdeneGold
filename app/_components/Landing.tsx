@@ -4,6 +4,7 @@ import { getNow } from "./data/data";
 
 import { T } from "../styles/tokens";
 import { ChevronRight, Clock, Image, UserKey, UserPen } from "lucide-react";
+import { url } from "inspector";
 
 export default function Landing({ onSelect }: LandingProps) {
   const { time, date } = getNow();
@@ -19,6 +20,9 @@ export default function Landing({ onSelect }: LandingProps) {
         justifyContent: "center",
         fontFamily: T.font,
         padding: "24px 20px",
+        backgroundImage: "url('./landing.jpg')",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
       }}
     >
       {/* Hero */}
@@ -37,20 +41,20 @@ export default function Landing({ onSelect }: LandingProps) {
             boxShadow: T.shadowGold,
           }}
         >
-          <Image />
+          <img src="./logo.png" height={"26px"} width={"52px"} />
         </div>
         <h1
           style={{
-            fontSize: 26,
+            fontSize: 20,
             color: T.text,
             fontWeight: 600,
             margin: "0 0 6px",
             letterSpacing: 0.5,
           }}
         >
-          Алт боловсруулах систем
+          Баян Хөндий хүдэр боловсруулах үйлдвэрийн цаг тутмын мэдээ
         </h1>
-        <div
+        {/* <div
           style={{
             fontSize: 12,
             color: T.textLight,
@@ -60,7 +64,7 @@ export default function Landing({ onSelect }: LandingProps) {
           }}
         >
           Gold Processing System
-        </div>
+        </div> */}
         <div
           style={{
             fontSize: 13,
