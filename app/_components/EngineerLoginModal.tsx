@@ -1,38 +1,55 @@
 "use client";
 import { useState } from "react";
-// import { Icons } from "../components/Icons";
+import { useSignIn } from "@clerk/nextjs/legacy";
 import { T } from "../styles/tokens";
 import {
   ChevronLeft,
   EyeClosedIcon,
   EyeIcon,
   FileWarningIcon,
-  SkipBack,
   User,
 } from "lucide-react";
 
 interface EngineerLoginModalProps {
-  onLogin: (email: string, password: string) => Promise<void>;
   onBack: () => void;
-  error: string;
-  loading: boolean;
+  onSuccess: () => void;
 }
 
 export default function EngineerLoginModal({
-  onLogin,
   onBack,
-  error,
-  loading,
+  onSuccess,
 }: EngineerLoginModalProps) {
+  const { signIn, setActive, isLoaded } = useSignIn();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
-    if (!email || !password) return;
-    onLogin(email, password);
+  const handleSubmit = async () => {
+    if (!isLoaded || !signIn || !setActive || !email || !password) return;
+    setLoading(true);
+    setErrorMessage("");
+    try {
+      const result = await signIn.create({
+        identifier: email,
+        strategy: "password",
+        password,
+      });
+      console.log("Clerk result status:", result.status, "sessionId:", result.createdSessionId);
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        onSuccess();
+        console.log("working");
+      }
+    } catch {
+      setErrorMessage("Нэвтрэх мэдээлэл буруу байна");
+    } finally {
+      setLoading(false);
+    }
   };
-  const isDisabled = loading || !email || !password;
+
+  const isDisabled = loading || !email || !password || !isLoaded;
 
   const inputStyle = (hasError: boolean): React.CSSProperties => ({
     width: "100%",
@@ -170,7 +187,7 @@ export default function EngineerLoginModal({
               onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
               placeholder="engineer@mine.mn"
               autoComplete="email"
-              style={inputStyle(!!error)}
+              style={inputStyle(!!errorMessage)}
             />
           </div>
 
@@ -195,7 +212,7 @@ export default function EngineerLoginModal({
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="••••••••"
                 autoComplete="current-password"
-                style={{ ...inputStyle(!!error), paddingRight: 48 }}
+                style={{ ...inputStyle(!!errorMessage), paddingRight: 48 }}
               />
               <button
                 onClick={() => setShowPassword((p) => !p)}
@@ -218,7 +235,7 @@ export default function EngineerLoginModal({
             </div>
           </div>
 
-          {error && (
+          {errorMessage && (
             <div
               style={{
                 background: "#FEF2F0",
@@ -232,7 +249,7 @@ export default function EngineerLoginModal({
                 gap: 8,
               }}
             >
-              <FileWarningIcon /> {error}
+              <FileWarningIcon /> {errorMessage}
             </div>
           )}
 

@@ -71,7 +71,7 @@ export default function EngineerSection({ onBack }: EngineerSectionProps) {
       filterDept === "all"
         ? "Бүх хэлтэс"
         : (departments.find((d) => d.id === filterDept)?.name ?? filterDept);
-    XLSX.writeFile(wb, `Алт_${deptName}_${dateFrom}_${dateTo}.xlsx`);
+    XLSX.writeFile(wb, `ERD_Logsheet_${deptName}_${dateFrom}_${dateTo}.xlsx`);
   };
 
   const inputDateStyle: React.CSSProperties = {
@@ -134,7 +134,7 @@ export default function EngineerSection({ onBack }: EngineerSectionProps) {
             Инженерийн хэсэг
           </div>
           <div style={{ fontSize: 11, color: T.textLight }}>
-            {date} · {time} · Нийт {submissions.length} бичлэг
+            {date} · {time} · Нийт мэдээний хуудас-{submissions.length}
           </div>
         </div>
         <button
@@ -301,7 +301,14 @@ export default function EngineerSection({ onBack }: EngineerSectionProps) {
                 >
                   <div style={{ fontWeight: 600 }}>{d.name}</div>
                   {DEPT_NAMES[d.name] && (
-                    <div style={{ fontSize: 11, color: T.textLight, marginTop: 2, fontWeight: 400 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: T.textLight,
+                        marginTop: 2,
+                        fontWeight: 400,
+                      }}
+                    >
                       {DEPT_NAMES[d.name]}
                     </div>
                   )}
@@ -357,7 +364,14 @@ export default function EngineerSection({ onBack }: EngineerSectionProps) {
                 >
                   {detail.department.name}
                   {DEPT_NAMES[detail.department.name] && (
-                    <div style={{ fontSize: 13, color: T.textMid, fontWeight: 400, marginTop: 2 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: T.textMid,
+                        fontWeight: 400,
+                        marginTop: 2,
+                      }}
+                    >
                       {DEPT_NAMES[detail.department.name]}
                     </div>
                   )}

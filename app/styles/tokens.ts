@@ -2,7 +2,7 @@ export const T = {
   // Colors
   gold: "#C9A84C",
   goldLight: "#F5E6B8",
-  goldDark: "#8B6914",
+  goldDark: "#eaac10",
   white: "#FAFAF8",
   offWhite: "#F2EFE6",
   border: "#E8E0CC",
@@ -10,7 +10,7 @@ export const T = {
   text: "#1A1A14",
   textMid: "#5A5040",
   textLight: "#9A8E70",
-  green: "#2D6A4F",
+  green: "#055831",
   red: "#C0392B",
   bg: "#FAFAF8",
 

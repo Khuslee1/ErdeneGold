@@ -1,7 +1,13 @@
 // app/api/submissions/route.ts
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET(req: Request) {
+  const { userId } = await auth();
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const deptId = searchParams.get("deptId");
   const dateFrom = searchParams.get("dateFrom");

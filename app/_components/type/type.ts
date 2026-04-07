@@ -14,6 +14,7 @@ export interface Question {
   label: string | null;
   type: "TEXT" | "NUMBER" | "BOOLEAN";
   order: number;
+  required: boolean;
   allowedHours: number[];
 }
 

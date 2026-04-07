@@ -1,10 +1,21 @@
 // hooks/useEngineerAuth.ts
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function useEngineerAuth() {
   const [engineer, setEngineer] = useState<{ name: string } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Check existing session on mount
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.name) setEngineer({ name: data.name });
+      })
+      .finally(() => setIsLoaded(true));
+  }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
@@ -15,7 +26,10 @@ export function useEngineerAuth() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) { setError("Нэвтрэх мэдээлэл буруу байна"); return; }
+      if (!res.ok) {
+        setError("Нэвтрэх мэдээлэл буруу байна");
+        return;
+      }
       const data = await res.json();
       setEngineer({ name: data.name });
     } finally {
@@ -28,5 +42,5 @@ export function useEngineerAuth() {
     setEngineer(null);
   };
 
-  return { engineer, login, logout, error, loading };
+  return { engineer, login, logout, error, loading, isLoaded };
 }

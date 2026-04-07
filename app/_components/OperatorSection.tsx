@@ -3,7 +3,13 @@ import { useState } from "react";
 import type { OperatorSectionProps } from "./type/type";
 import { useDepartments } from "../api/hooks/useDepartments";
 import { useQuestions } from "../api/hooks/useQuestions";
-import { DAY_HOURS, NIGHT_HOURS, getShiftForHour, getNow, DEPT_NAMES } from "./data/data";
+import {
+  DAY_HOURS,
+  NIGHT_HOURS,
+  getShiftForHour,
+  getNow,
+  DEPT_NAMES,
+} from "./data/data";
 import { T } from "../styles/tokens";
 import {
   Check,
@@ -51,7 +57,8 @@ export default function OperatorSection({ onBack }: OperatorSectionProps) {
   const validate = () => {
     const errs: Record<string, boolean> = {};
     questions.forEach((q) => {
-      if (!answers[q.id] && answers[q.id] !== "false") errs[q.id] = true;
+      if (q.required && !answers[q.id] && answers[q.id] !== "false")
+        errs[q.id] = true;
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -276,7 +283,14 @@ export default function OperatorSection({ onBack }: OperatorSectionProps) {
             <div style={{ fontSize: 16, color: T.text, fontWeight: 600 }}>
               {dept?.name}
               {dept && DEPT_NAMES[dept.name] && (
-                <span style={{ fontWeight: 400, color: T.textMid, marginLeft: 8, fontSize: 13 }}>
+                <span
+                  style={{
+                    fontWeight: 400,
+                    color: T.textMid,
+                    marginLeft: 8,
+                    fontSize: 13,
+                  }}
+                >
                   {DEPT_NAMES[dept.name]}
                 </span>
               )}
@@ -785,7 +799,7 @@ export default function OperatorSection({ onBack }: OperatorSectionProps) {
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, color: T.text, fontWeight: 600 }}>
-              Алт боловсруулалт
+              "Баян Хөндий" Хүдэр боловсруулах үйлдвэрийн мэдээний систем
             </div>
             <div style={{ fontSize: 11, color: T.textLight }}>
               Оператор · {date}
@@ -816,7 +830,7 @@ export default function OperatorSection({ onBack }: OperatorSectionProps) {
             paddingLeft: 4,
           }}
         >
-          Өөрийн хэлтсийг сонгоно уу:
+          Өөрийн циклийг сонгоно уу:
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {departments.map((d) => (

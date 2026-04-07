@@ -143,10 +143,10 @@ export default function Landing({ onSelect }: LandingProps) {
               Оператор
             </div>
             <div style={{ fontSize: 12, color: T.textLight }}>
-              Мэдээлэл оруулах · Хэлтэс сонгох
+              Мэдээлэл оруулах · Цикл сонгох
             </div>
           </div>
-          <div style={{ color: T.borderDark }}>
+          <div style={{ color: T.textLight }}>
             <ChevronRight />
           </div>
         </button>
